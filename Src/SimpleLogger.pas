@@ -1,4 +1,4 @@
-unit SimpleLogger;
+﻿unit SimpleLogger;
 
 interface
 uses

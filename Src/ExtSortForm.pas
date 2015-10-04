@@ -1,4 +1,4 @@
-unit ExtSortForm;
+п»їunit ExtSortForm;
 
 interface
 
@@ -98,34 +98,34 @@ end;
 
 procedure TMainForm.SortButtonClick(Sender: TObject);
 begin
-  StatusBar.SetInfo('Сортировка ...');
+  StatusBar.SetInfo('РЎРѕСЂС‚РёСЂРѕРІРєР° ...');
   try
-    // Запустить сортировку
+    // Р—Р°РїСѓСЃС‚РёС‚СЊ СЃРѕСЂС‚РёСЂРѕРІРєСѓ
     StartSort;
 
   except
     on E: Exception do
-      StatusBar.SetInfo(Format('ОШИБКА: %s', [E.Message]));
+      StatusBar.SetInfo(Format('РћРЁРР‘РљРђ: %s', [E.Message]));
   end;
 end;
 
 procedure TMainForm.SrcButtonedEditRightButtonClick(Sender: TObject);
 begin
-  // Файла - источник
+  // Р¤Р°Р№Р»Р° - РёСЃС‚РѕС‡РЅРёРє
   if OpenTextFileDialog.Execute then
   begin
     SrcButtonedEdit.Text := OpenTextFileDialog.FileName;
-    StatusBar.SetInfo(Format('Файл - источник: %s', [SrcButtonedEdit.Text]));
+    StatusBar.SetInfo(Format('Р¤Р°Р№Р» - РёСЃС‚РѕС‡РЅРёРє: %s', [SrcButtonedEdit.Text]));
   end;
 end;
 
 procedure TMainForm.DscButtonedEditRightButtonClick(Sender: TObject);
 begin
-  // Файл - приемник
+  // Р¤Р°Р№Р» - РїСЂРёРµРјРЅРёРє
   if SaveTextFileDialog.Execute then
   begin
     DscButtonedEdit.Text := SaveTextFileDialog.FileName;
-    StatusBar.SetInfo(Format('Файл - приемник: %s', [DscButtonedEdit.Text]));
+    StatusBar.SetInfo(Format('Р¤Р°Р№Р» - РїСЂРёРµРјРЅРёРє: %s', [DscButtonedEdit.Text]));
   end;
 end;
 
@@ -136,18 +136,18 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
-  // Отрисовка ProgressBar в StatusBar
+  // РћС‚СЂРёСЃРѕРІРєР° ProgressBar РІ StatusBar
   ProgressBar.Parent := StatusBar;
-  // Фабрика объектов сортировки: серии, слияние
+  // Р¤Р°Р±СЂРёРєР° РѕР±СЉРµРєС‚РѕРІ СЃРѕСЂС‚РёСЂРѕРІРєРё: СЃРµСЂРёРё, СЃР»РёСЏРЅРёРµ
   FSortFactory := TSortFactory.Create(TFileReader, TFileWriter);
-  // Пул потоков  создания серий
+  // РџСѓР» РїРѕС‚РѕРєРѕРІ  СЃРѕР·РґР°РЅРёСЏ СЃРµСЂРёР№
   FSeriesPool := TList<ISeries>.Create;
 end;
 
 procedure TMainForm.StatusBarDrawPanel(StatusBar: TStatusBar; Panel: TStatusPanel;
   const [Ref] Rect: TRect);
 begin
-  // Отрисовка ProgressBar в StatusBar
+  // РћС‚СЂРёСЃРѕРІРєР° ProgressBar РІ StatusBar
   if Panel = StatusBar.Panels[2] then
     ProgressBar.BoundsRect := Rect;
 end;
@@ -160,20 +160,20 @@ end;
 
 procedure TMainForm.WmSortFinished(var Message: TMessage);
 begin
-    StatusBar.SetInfo('Сортировка закончена');
+    StatusBar.SetInfo('РЎРѕСЂС‚РёСЂРѕРІРєР° Р·Р°РєРѕРЅС‡РµРЅР°');
     Timer.Enabled := False;
 end;
 
 procedure TMainForm.WmUpdateMerge(var Message: TMessage);
 begin
-    StatusBar.SetInfo('Фаза слияния...');
+    StatusBar.SetInfo('Р¤Р°Р·Р° СЃР»РёСЏРЅРёСЏ...');
     ProgressBar.Max := Message.LParam;
     ProgressBar.Position := Message.WParam;
 end;
 
 procedure TMainForm.WmUpdateSeries(var Message: TMessage);
 begin
-    StatusBar.SetInfo('Фаза серий...');
+    StatusBar.SetInfo('Р¤Р°Р·Р° СЃРµСЂРёР№...');
     ProgressBar.Max := Message.LParam;
     ProgressBar.Position := Message.WParam;
 end;
@@ -192,42 +192,42 @@ begin
   FSortFactory.SrcFileName := SrcButtonedEdit.Text;
   FSortFactory.DscFileName := DscButtonedEdit.Text;
 
-  // Разделить файл на равные части
+  // Р Р°Р·РґРµР»РёС‚СЊ С„Р°Р№Р» РЅР° СЂР°РІРЅС‹Рµ С‡Р°СЃС‚Рё
   TextFile        := FSortFactory.Reader;
   FileSection     := TextFile.Size div NUMBER_PROCESSOR;
   ProgressBar.Max := FileSection;
 
 {$IFDEF DEBUG}
-  Log.LogStatus(Format('Сортируемый файл ''%s''', [SrcButtonedEdit.Text]), 'TMainForm.StartSort');
-  Log.LogStatus(Format('Размер файла ''%d''', [TextFile.Size]), 'TMainForm.StartSort');
-  Log.LogStatus(Format('Размер части файла ''%d''', [FileSection]), 'TMainForm.StartSort');
-  Log.LogStatus(Format('Количество частей файла ''%d''', [NUMBER_PROCESSOR]),
+  Log.LogStatus(Format('РЎРѕСЂС‚РёСЂСѓРµРјС‹Р№ С„Р°Р№Р» ''%s''', [SrcButtonedEdit.Text]), 'TMainForm.StartSort');
+  Log.LogStatus(Format('Р Р°Р·РјРµСЂ С„Р°Р№Р»Р° ''%d''', [TextFile.Size]), 'TMainForm.StartSort');
+  Log.LogStatus(Format('Р Р°Р·РјРµСЂ С‡Р°СЃС‚Рё С„Р°Р№Р»Р° ''%d''', [FileSection]), 'TMainForm.StartSort');
+  Log.LogStatus(Format('РљРѕР»РёС‡РµСЃС‚РІРѕ С‡Р°СЃС‚РµР№ С„Р°Р№Р»Р° ''%d''', [NUMBER_PROCESSOR]),
     'TMainForm.StartSort');
 {$ENDIF}
 
-  // Интерфейс слияния
+  // РРЅС‚РµСЂС„РµР№СЃ СЃР»РёСЏРЅРёСЏ
   FMerge := FSortFactory.GetMerge;
   FMerge.Start;
 
   for I := 0 to NUMBER_PROCESSOR - 1 do
   begin
 
-    // Разделить файл на равные части
+    // Р Р°Р·РґРµР»РёС‚СЊ С„Р°Р№Р» РЅР° СЂР°РІРЅС‹Рµ С‡Р°СЃС‚Рё
     TextFile := FSortFactory.Reader;
     L        := I * FileSection;
     H        := (I + 1) * FileSection;
     TextFile.SetBoundaries(L, H);
 
 {$IFDEF DEBUG}
-    Log.LogStatus(Format('Диапазон %d части ''%d - %d''', [I, L, H]), 'TMainForm.StartSort');
+    Log.LogStatus(Format('Р”РёР°РїР°Р·РѕРЅ %d С‡Р°СЃС‚Рё ''%d - %d''', [I, L, H]), 'TMainForm.StartSort');
 {$ENDIF}
-    // Интерфейс серий
+    // РРЅС‚РµСЂС„РµР№СЃ СЃРµСЂРёР№
     if I = 0 then
       Series := FSortFactory.GetSeries(TextFile, FMerge, True)
     else
       Series := FSortFactory.GetSeries(TextFile, FMerge);
     Series.Start;
-    // Добавить интерфейс серии в пул
+    // Р”РѕР±Р°РІРёС‚СЊ РёРЅС‚РµСЂС„РµР№СЃ СЃРµСЂРёРё РІ РїСѓР»
     FSeriesPool.Add(Series);
   end;
 end;

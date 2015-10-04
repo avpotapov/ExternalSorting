@@ -1,4 +1,4 @@
-unit ExtSortThread;
+п»їunit ExtSortThread;
 
 interface
 
@@ -51,8 +51,8 @@ type
     FTempFileName   : string;
   public
     constructor Create(const AFileReader: IFileReader; const AFileReaderClass: TFileClass;
-      // Класс файла для чтения
-      const AFileWriterClass: TFileClass // Класс файла для записи
+      // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ С‡С‚РµРЅРёСЏ
+      const AFileWriterClass: TFileClass // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ Р·Р°РїРёСЃРё
       ); reintroduce;
     destructor Destroy; override;
   public
@@ -75,11 +75,11 @@ type
     procedure ClearStringList;
     procedure MergeWithFile;
   public
-    constructor Create(const AFileReader: IFileReader; // Текстовый файл
-      const AFileReaderClass: TFileClass;              // Класс файла для чтения
-      const AFileWriterClass: TFileClass;              // Класс файла для записи
-      const AMerge: IMerge;                            // Объект заключительного слияния файлов
-      const AInfo: Boolean = False // Флаг отправки позиции чтения файла в ProgressBar
+    constructor Create(const AFileReader: IFileReader; // РўРµРєСЃС‚РѕРІС‹Р№ С„Р°Р№Р»
+      const AFileReaderClass: TFileClass;              // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ С‡С‚РµРЅРёСЏ
+      const AFileWriterClass: TFileClass;              // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ Р·Р°РїРёСЃРё
+      const AMerge: IMerge;                            // РћР±СЉРµРєС‚ Р·Р°РєР»СЋС‡РёС‚РµР»СЊРЅРѕРіРѕ СЃР»РёСЏРЅРёСЏ С„Р°Р№Р»РѕРІ
+      const AInfo: Boolean = False // Р¤Р»Р°Рі РѕС‚РїСЂР°РІРєРё РїРѕР·РёС†РёРё С‡С‚РµРЅРёСЏ С„Р°Р№Р»Р° РІ ProgressBar
       ); reintroduce;
     destructor Destroy; override;
     procedure Start; override;
@@ -90,16 +90,16 @@ type
     FFileName: string;
     FQueue: TQueue<string>;
     FMutex: THandle;
-    // Массив ожидаемых событий
+    // РњР°СЃСЃРёРІ РѕР¶РёРґР°РµРјС‹С… СЃРѕР±С‹С‚РёР№
     // Mutex + FEvents[0]
     FEvents: array [0 .. 1] of THandle;
   private
     procedure MergeFiles(const AFilename: string);
   public
-    constructor Create(const AFilename: string; // Имя отсортированного файла
-      const AFileReader: IFileReader;           // Текстовый файл
-      const AFileReaderClass: TFileClass;       // Класс файла для чтения
-      const AFileWriterClass: TFileClass        // Класс файла для записи
+    constructor Create(const AFilename: string; // РРјСЏ РѕС‚СЃРѕСЂС‚РёСЂРѕРІР°РЅРЅРѕРіРѕ С„Р°Р№Р»Р°
+      const AFileReader: IFileReader;           // РўРµРєСЃС‚РѕРІС‹Р№ С„Р°Р№Р»
+      const AFileReaderClass: TFileClass;       // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ С‡С‚РµРЅРёСЏ
+      const AFileWriterClass: TFileClass        // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ Р·Р°РїРёСЃРё
       ); reintroduce;
 
     destructor Destroy; override;
@@ -184,9 +184,9 @@ end;
 function TSortFactory.GetSeries(AReader: IFileReader; AMerge: IMerge; AInfo: Boolean): ISeries;
 begin
   if AReader = nil then
-    raise Exception.Create('Не указан интерфейс исходного файла');
+    raise Exception.Create('РќРµ СѓРєР°Р·Р°РЅ РёРЅС‚РµСЂС„РµР№СЃ РёСЃС…РѕРґРЅРѕРіРѕ С„Р°Р№Р»Р°');
   if AMerge = nil then
-    raise Exception.Create('Не указан интерфейс слияния файла');
+    raise Exception.Create('РќРµ СѓРєР°Р·Р°РЅ РёРЅС‚РµСЂС„РµР№СЃ СЃР»РёСЏРЅРёСЏ С„Р°Р№Р»Р°');
   Result := TSeries.Create(AReader, FFileReaderClass, FFileWriterClass, AMerge, AInfo);
 end;
 
@@ -194,10 +194,10 @@ procedure TSortFactory.SetDscFileName(const Value: string);
 begin
   FDscFileName := Value;
   if Value = '' then
-    raise Exception.Create('Не указано имя отсортированного файла');
+    raise Exception.Create('РќРµ СѓРєР°Р·Р°РЅРѕ РёРјСЏ РѕС‚СЃРѕСЂС‚РёСЂРѕРІР°РЅРЅРѕРіРѕ С„Р°Р№Р»Р°');
 
   if FileExists(FDscFileName) then
-    raise Exception.CreateFmt('Файл ''%'' уже существует' + #13#10 + 'Укажите новое имя файла',
+    raise Exception.CreateFmt('Р¤Р°Р№Р» ''%'' СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚' + #13#10 + 'РЈРєР°Р¶РёС‚Рµ РЅРѕРІРѕРµ РёРјСЏ С„Р°Р№Р»Р°',
       [FSrcFileName]);
 end;
 
@@ -205,10 +205,10 @@ procedure TSortFactory.SetSrcFileName(const Value: string);
 begin
   FSrcFileName := Value;
   if Value = '' then
-    raise Exception.Create('Не указано имя сортируемого файла');
+    raise Exception.Create('РќРµ СѓРєР°Р·Р°РЅРѕ РёРјСЏ СЃРѕСЂС‚РёСЂСѓРµРјРѕРіРѕ С„Р°Р№Р»Р°');
 
   if not FileExists(FSrcFileName) then
-    raise Exception.CreateFmt('Файл ''%'' не найден', [FSrcFileName]);
+    raise Exception.CreateFmt('Р¤Р°Р№Р» ''%'' РЅРµ РЅР°Р№РґРµРЅ', [FSrcFileName]);
 end;
 
 { TBaseThread }
@@ -246,11 +246,11 @@ end;
 
 { TSeries }
 
-constructor TSeries.Create(const AFileReader: IFileReader; // Текстовый файл
-  const AFileReaderClass: TFileClass;                      // Класс файла для чтения
-  const AFileWriterClass: TFileClass;                      // Класс файла для записи
-  const AMerge: IMerge; // Интерфейс, который получает отрезок для слияния файлов
-  const AInfo: Boolean = False // Флаг отправки позиции чтения файла в ProgressBar
+constructor TSeries.Create(const AFileReader: IFileReader; // РўРµРєСЃС‚РѕРІС‹Р№ С„Р°Р№Р»
+  const AFileReaderClass: TFileClass;                      // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ С‡С‚РµРЅРёСЏ
+  const AFileWriterClass: TFileClass;                      // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ Р·Р°РїРёСЃРё
+  const AMerge: IMerge; // РРЅС‚РµСЂС„РµР№СЃ, РєРѕС‚РѕСЂС‹Р№ РїРѕР»СѓС‡Р°РµС‚ РѕС‚СЂРµР·РѕРє РґР»СЏ СЃР»РёСЏРЅРёСЏ С„Р°Р№Р»РѕРІ
+  const AInfo: Boolean = False // Р¤Р»Р°Рі РѕС‚РїСЂР°РІРєРё РїРѕР·РёС†РёРё С‡С‚РµРЅРёСЏ С„Р°Р№Р»Р° РІ ProgressBar
   );
 begin
   inherited Create(AFileReader, AFileReaderClass, AFileWriterClass);
@@ -277,7 +277,7 @@ end;
 
 procedure TSeries.MergeWithFile;
 
-// Основная процедура слияния списка и файла
+// РћСЃРЅРѕРІРЅР°СЏ РїСЂРѕС†РµРґСѓСЂР° СЃР»РёСЏРЅРёСЏ СЃРїРёСЃРєР° Рё С„Р°Р№Р»Р°
   procedure Merge(const AReader: IFileReader; const AWriter: IFileWriter);
   var
     Index         : Integer;
@@ -287,7 +287,7 @@ procedure TSeries.MergeWithFile;
     Index        := 0;
     IsReadString := AReader.ReadString(StringFromFile);
 
-    // Слияние
+    // РЎР»РёСЏРЅРёРµ
     while (FStringList.Count > Index) and IsReadString do
     begin
       if CompareShortString(FStringList[Index], StringFromFile) < 0 then
@@ -302,7 +302,7 @@ procedure TSeries.MergeWithFile;
       end;
     end;
 
-    // Хвостовая запись
+    // РҐРІРѕСЃС‚РѕРІР°СЏ Р·Р°РїРёСЃСЊ
     while IsReadString do
     begin
       AWriter.WriteString(StringFromFile);
@@ -410,7 +410,7 @@ begin
             FFileReader.Position, Size);
       end;
 
-      // Отправить файл для завершающего слияния
+      // РћС‚РїСЂР°РІРёС‚СЊ С„Р°Р№Р» РґР»СЏ Р·Р°РІРµСЂС€Р°СЋС‰РµРіРѕ СЃР»РёСЏРЅРёСЏ
       while not HasStopped do
         if FMerge.Add(FTempFileName) then
           Break;
@@ -425,10 +425,10 @@ end;
 
 { TMerge }
 
-constructor TMerge.Create(const AFilename: string; // Имя отсортированного файла
-const AFileReader: IFileReader;                    // Текстовый файл
-const AFileReaderClass: TFileClass;                // Класс файла для чтения
-const AFileWriterClass: TFileClass                 // Класс файла для записи
+constructor TMerge.Create(const AFilename: string; // РРјСЏ РѕС‚СЃРѕСЂС‚РёСЂРѕРІР°РЅРЅРѕРіРѕ С„Р°Р№Р»Р°
+const AFileReader: IFileReader;                    // РўРµРєСЃС‚РѕРІС‹Р№ С„Р°Р№Р»
+const AFileReaderClass: TFileClass;                // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ С‡С‚РµРЅРёСЏ
+const AFileWriterClass: TFileClass                 // РљР»Р°СЃСЃ С„Р°Р№Р»Р° РґР»СЏ Р·Р°РїРёСЃРё
   );
 begin
   inherited Create(AFileReader, AFileReaderClass, AFileWriterClass);
