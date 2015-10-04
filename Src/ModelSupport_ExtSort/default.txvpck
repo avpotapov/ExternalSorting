@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<nodeSet version="1.0">
+  <view uin="aihkmv1oh5o_v">
+    <property name="$defaultDiagram" value="true" />
+    <property name="$metaclass" value="Package Diagram" />
+    <property name="$name" value="default" />
+    <reference referencedUin="design:view:::u34z92ghl2g_v">
+      <property name="$shortcutReference" value="true" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSort.@unitclass" />
+    </reference>
+    <reference referencedUin="design:view:::g2rqlguzebg_v">
+      <property name="$shortcutReference" value="true" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortFile.TFileReader" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortFile.TFileClass" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortFile.IFile" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortFile.IFileWriter" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortFile.IFileReader" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortFile.TTextFile" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortFile.TFileWriter" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortFile.@unitclass" />
+    </reference>
+    <reference referencedUin="design:view:::4b247a6ckke_v">
+      <property name="$shortcutReference" value="true" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:SimpleLogger.@unitclass" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:SimpleLogger.TSimpleLogger" />
+    </reference>
+    <reference referencedUin="design:view:::hhdvebjmqlr_v">
+      <property name="$shortcutReference" value="true" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortForm.@unitclass" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortForm.TStatusBarHelper" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortForm.TMainForm" />
+    </reference>
+    <reference referencedUin="design:view:::w7sjvv0rvqg_v">
+      <property name="$shortcutReference" value="true" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortThread.IMerge" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortThread.TSeries" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortThread.ISortFactory" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortThread.@unitclass" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortThread.TSortFactory" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortThread.ISeries" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortThread.TBaseThread" />
+      <reference referencedUin="delphi:e_class:src:ExtSort:ExtSortThread.TMerge" />
+    </reference>
+    <reference referencedUin="design:view:::v4wr3nhq0di_v">
+      <property name="$shortcutReference" value="true" />
+    </reference>
+  </view>
+</nodeSet>

@@ -21,25 +21,24 @@ const
   AVAILABLE_MEMORY = $100000 shr 2;
   NUMBER_PROCESSOR = 4;
 
-  WM_UPDATE_SERIES_PROGRESS = WM_USER + 1;
-  WM_UPDATE_MERGE_PROGRESS  = WM_USER + 2;
-  WM_UPDATE_SORT_FINISHED   = WM_USER + 3;
+  WM_SORT_HAS_FINISHED = WM_USER + 1;
 
 type
   EExtSortThread = class(Exception);
 
-  ISeries = interface
+  ISortThread = interface
     ['{584FBB13-9C6E-407A-A9BD-1643D5248946}']
     procedure Start;
     procedure Stop;
   end;
 
-  IMerge = interface(ISeries)
+  IMergeManager = interface(ISortThread)
     ['{B9235DAE-87E5-4F03-9D44-109B1C86C468}']
     function Add(const AFilename: string): Boolean;
   end;
 
-  TBaseThread = class(TInterfacedObject, ISeries)
+
+  TSortThread = class(TInterfacedObject, ISortThread)
   protected
     class var FStop: Integer;
   protected
@@ -48,7 +47,6 @@ type
     FFileReaderClass: TFileClass;
     FFileWriterClass: TFileClass;
     FThread         : TThread;
-    FTempFileName   : string;
   public
     constructor Create(const AFileReader: IFileReader; const AFileReaderClass: TFileClass;
       // Класс файла для чтения
@@ -62,44 +60,39 @@ type
     procedure Start; virtual; abstract;
   end;
 
-  TSeries = class(TBaseThread)
-    FInfo: Boolean;
+  TMergeManager = class;
+
+  TSeries = class(TSortThread)
     FEof: Boolean;
     FStringList: TList<AnsiString>;
     FAvailableMemory: Integer;
-    FMerge: IMerge;
+    FMerge: TMergeManager;
     procedure PopulateStringList;
     procedure SortStringList;
     procedure SaveStringList;
-    procedure MergeStringList;
+    procedure NotifyMergeManager(const ASeriesFileName: string);
     procedure ClearStringList;
-    procedure MergeWithFile;
   public
     constructor Create(const AFileReader: IFileReader; // Текстовый файл
       const AFileReaderClass: TFileClass;              // Класс файла для чтения
       const AFileWriterClass: TFileClass;              // Класс файла для записи
-      const AMerge: IMerge;                            // Объект заключительного слияния файлов
-      const AInfo: Boolean = False // Флаг отправки позиции чтения файла в ProgressBar
+      const AMerge: IMergeManager                     // Объект заключительного слияния файлов
       ); reintroduce;
     destructor Destroy; override;
     procedure Start; override;
   end;
 
-  TMerge = class(TBaseThread, IMerge)
+  TMergeManager = class(TSortThread, IMergeManager)
     FCounter: Integer;
     FFileName: string;
+    FMerges: TList<ISortThread>;
     FQueue: TQueue<string>;
     FMutex: THandle;
-    // Массив ожидаемых событий
-    // Mutex + FEvents[0]
-    FEvents: array [0 .. 1] of THandle;
-  private
-    procedure MergeFiles(const AFilename: string);
   public
     constructor Create(const AFilename: string; // Имя отсортированного файла
       const AFileReader: IFileReader;           // Текстовый файл
       const AFileReaderClass: TFileClass;       // Класс файла для чтения
-      const AFileWriterClass: TFileClass        // Класс файла для записи
+      const AFileWriterClass: TFileClass       // Класс файла для записи
       ); reintroduce;
 
     destructor Destroy; override;
@@ -108,10 +101,29 @@ type
     function Add(const AFilename: string): Boolean;
   end;
 
+  TMerge = class(TSortThread)
+    FMergeManager: TMergeManager;
+    FLeftFileName, FRightFileName: string;
+    procedure MergeFiles;
+  private
+    FFileName: string;
+  public
+    constructor Create(const AFilename: string; // Имя отсортированного файла
+      const AFileReader: IFileReader;           // Исходный текстовый файл
+      const AFileNames: array of string;        // Имена сливаемых файлов
+      const AMergeManager: TMergeManager;       // Менеджер слияния
+      const AFileReaderClass: TFileClass;       // Класс файла для чтения
+      const AFileWriterClass: TFileClass        // Класс файла для записи
+      ); reintroduce;
+  public
+    procedure Start; override;
+  end;
+
   ISortFactory = interface
     ['{3733A403-3813-478F-9E3A-B592D283A7D7}']
-    function GetSeries(AReader: IFileReader; AMerge: IMerge; AInfo: Boolean = False): ISeries;
-    function GetMerge: IMerge;
+    function GetSeries(AReader: IFileReader; AMerge: IMergeManager)
+      : ISortThread;
+    function GetMergeManager: IMergeManager;
     procedure SetSrcFileName(const Value: string);
     procedure SetDscFileName(const Value: string);
     function GetReader: IFileReader;
@@ -130,10 +142,12 @@ type
     procedure SetSrcFileName(const Value: string);
     procedure SetDscFileName(const Value: string);
   public
-    constructor Create(AFileReaderClass, AFileWriterClass: TFileClass); reintroduce;
+    constructor Create(AFileReaderClass, AFileWriterClass: TFileClass);
+      reintroduce;
   public
-    function GetMerge: IMerge;
-    function GetSeries(AReader: IFileReader; AMerge: IMerge; AInfo: Boolean = False): ISeries;
+    function GetMergeManager: IMergeManager;
+    function GetSeries(AReader: IFileReader; AMergeManager: IMergeManager)
+      : ISortThread;
     function GetReader: IFileReader;
 
     property SrcFileName: string write SetSrcFileName;
@@ -152,7 +166,7 @@ begin
   Result := System.AnsiStrings.AnsiStrLComp(@Left[1], @Right[1],
     Min(MAX_SIZE_COMPARE_STRING, Min(L, R)));
   if (Result = 0) and (L < R) then
-      Result := -1;
+    Result := -1;
   if (Result = 0) and (L > R) then
     Result := 1;
 
@@ -166,13 +180,13 @@ begin
   FFileWriterClass := AFileWriterClass;
 end;
 
-function TSortFactory.GetMerge: IMerge;
+function TSortFactory.GetMergeManager: IMergeManager;
 var
   Reader: IFileReader;
 begin
   Reader := FFileReaderClass.Create as IFileReader;
   Reader.Open(FSrcFileName);
-  Result := TMerge.Create(FDscFileName, Reader, FFileReaderClass, FFileWriterClass);
+  Result := TMergeManager.Create(FDscFileName, Reader, FFileReaderClass, FFileWriterClass);
 end;
 
 function TSortFactory.GetReader: IFileReader;
@@ -181,13 +195,13 @@ begin
   Result.Open(FSrcFileName);
 end;
 
-function TSortFactory.GetSeries(AReader: IFileReader; AMerge: IMerge; AInfo: Boolean): ISeries;
+function TSortFactory.GetSeries(AReader: IFileReader; AMergeManager: IMergeManager): ISortThread;
 begin
   if AReader = nil then
     raise Exception.Create('Не указан интерфейс исходного файла');
-  if AMerge = nil then
+  if AMergeManager = nil then
     raise Exception.Create('Не указан интерфейс слияния файла');
-  Result := TSeries.Create(AReader, FFileReaderClass, FFileWriterClass, AMerge, AInfo);
+  Result := TSeries.Create(AReader, FFileReaderClass, FFileWriterClass, AMergeManager);
 end;
 
 procedure TSortFactory.SetDscFileName(const Value: string);
@@ -213,33 +227,32 @@ end;
 
 { TBaseThread }
 
-class procedure TBaseThread.Initialize;
+class procedure TSortThread.Initialize;
 begin
   FStop := 0;
 end;
 
-constructor TBaseThread.Create(const AFileReader: IFileReader;
+constructor TSortThread.Create(const AFileReader: IFileReader;
   const AFileReaderClass, AFileWriterClass: TFileClass);
 begin
-  FTempFileName    := '';
   FFileReader      := AFileReader;
   FFileReaderClass := AFileReaderClass;
   FFileWriterClass := AFileWriterClass;
 end;
 
-destructor TBaseThread.Destroy;
+destructor TSortThread.Destroy;
 begin
   Stop;
   FreeAndNil(FThread);
   inherited;
 end;
 
-function TBaseThread.HasStopped: Boolean;
+function TSortThread.HasStopped: Boolean;
 begin
   Result := InterlockedCompareExchange(FStop, 1, 1) = 1;
 end;
 
-procedure TBaseThread.Stop;
+procedure TSortThread.Stop;
 begin
   InterlockedExchange(FStop, 1);
 end;
@@ -249,16 +262,14 @@ end;
 constructor TSeries.Create(const AFileReader: IFileReader; // Текстовый файл
   const AFileReaderClass: TFileClass;                      // Класс файла для чтения
   const AFileWriterClass: TFileClass;                      // Класс файла для записи
-  const AMerge: IMerge; // Интерфейс, который получает отрезок для слияния файлов
-  const AInfo: Boolean = False // Флаг отправки позиции чтения файла в ProgressBar
+  const AMerge: IMergeManager                             // Менеджер слияния файлов
   );
 begin
   inherited Create(AFileReader, AFileReaderClass, AFileWriterClass);
-  FMerge           := AMerge;
+  FMerge           := AMerge as TMergeManager;
   FStringList      := TList<AnsiString>.Create;
   FAvailableMemory := AVAILABLE_MEMORY;
   FEof             := False;
-  FInfo            := AInfo;
 end;
 
 destructor TSeries.Destroy;
@@ -267,78 +278,13 @@ begin
   FreeAndNil(FStringList);
 end;
 
-procedure TSeries.MergeStringList;
+procedure TSeries.NotifyMergeManager(const ASeriesFileName: string);
 begin
-  if FTempFileName = '' then
-    SaveStringList
-  else
-    MergeWithFile;
-end;
 
-procedure TSeries.MergeWithFile;
-
-// Основная процедура слияния списка и файла
-  procedure Merge(const AReader: IFileReader; const AWriter: IFileWriter);
-  var
-    Index         : Integer;
-    StringFromFile: AnsiString;
-    IsReadString  : Boolean;
-  begin
-    Index        := 0;
-    IsReadString := AReader.ReadString(StringFromFile);
-
-    // Слияние
-    while (FStringList.Count > Index) and IsReadString do
-    begin
-      if CompareShortString(FStringList[Index], StringFromFile) < 0 then
-      begin
-        AWriter.WriteString(FStringList[Index]);
-        Inc(Index);
-      end
-      else
-      begin
-        AWriter.WriteString(StringFromFile);
-        IsReadString := AReader.ReadString(StringFromFile);
-      end;
-    end;
-
-    // Хвостовая запись
-    while IsReadString do
-    begin
-      AWriter.WriteString(StringFromFile);
-      IsReadString := AReader.ReadString(StringFromFile);
-    end;
-
-    while (FStringList.Count > Index) do
-    begin
-      AWriter.WriteString(FStringList[Index]);
-      Inc(Index);
-    end;
-  end;
-
-var
-  FileReader     : IFileReader;
-  FileWriter     : IFileWriter;
-  NewTempFileName: string;
-begin
-  NewTempFileName := TFileWriter.MakeRandomFileName;
-
-  FileReader := FFileReaderClass.Create as IFileReader;
-  FileReader.Open(FTempFileName);
-  try
-    FileWriter := FFileWriterClass.Create as IFileWriter;
-    FileWriter.Open(NewTempFileName);
-    try
-      Merge(FileReader, FileWriter);
-    finally
-      FileWriter.Close;
-    end;
-  finally
-    FileReader.Close;
-    DeleteFile(FTempFileName);
-    FTempFileName := NewTempFileName;
-  end;
-
+  // Отправить файл для завершающего слияния
+  while not HasStopped do
+    if FMerge.Add(ASeriesFileName) then
+      Break;
 end;
 
 procedure TSeries.PopulateStringList;
@@ -375,15 +321,20 @@ end;
 
 procedure TSeries.SaveStringList;
 var
-  S         : AnsiString;
-  FileWriter: IFileWriter;
+  S             : AnsiString;
+  FileWriter    : IFileWriter;
+  SeriesFileName: string;
 begin
-  FTempFileName := TFileWriter.MakeRandomFileName;
-  FileWriter    := FFileWriterClass.Create as IFileWriter;
-  FileWriter.Open(FTempFileName);
+  SeriesFileName := TFileWriter.MakeRandomFileName;
+  FileWriter     := FFileWriterClass.Create as IFileWriter;
+  FileWriter.Open(SeriesFileName);
   try
+    // Сохранить серию в файл
     for S in FStringList do
       FileWriter.WriteString(S);
+
+    // Отправить имя файла менеджеру слияний
+    NotifyMergeManager(SeriesFileName);
   finally
     FileWriter.Close;
   end;
@@ -393,31 +344,16 @@ procedure TSeries.Start;
 begin
   FThread := TThread.CreateAnonymousThread(
     procedure
-    var
-      Size: Int64;
     begin
-      Size := FFileReader.Size div NUMBER_PROCESSOR;
       while not HasStopped do
       begin
         PopulateStringList;
         SortStringList;
-        MergeStringList;
+        SaveStringList;
         ClearStringList;
         if FEof then
           Break;
-        if FInfo then
-          SendMessage(Application.MainFormHandle, WM_UPDATE_SERIES_PROGRESS,
-            FFileReader.Position, Size);
       end;
-
-      // Отправить файл для завершающего слияния
-      while not HasStopped do
-        if FMerge.Add(FTempFileName) then
-          Break;
-
-      if FInfo then
-        SendMessage(Application.MainFormHandle, WM_UPDATE_SERIES_PROGRESS, 0, Size);
-
     end);
   FThread.FreeOnTerminate := False;
   FThread.Start;
@@ -425,37 +361,35 @@ end;
 
 { TMerge }
 
-constructor TMerge.Create(const AFilename: string; // Имя отсортированного файла
-const AFileReader: IFileReader;                    // Текстовый файл
-const AFileReaderClass: TFileClass;                // Класс файла для чтения
-const AFileWriterClass: TFileClass                 // Класс файла для записи
-  );
+constructor TMergeManager.Create(const AFilename: string; // Имя отсортированного файла
+const AFileReader: IFileReader;                           // Текстовый файл
+const AFileReaderClass: TFileClass;                       // Класс файла для чтения
+const AFileWriterClass: TFileClass                       // Класс файла для записи
+);
 begin
   inherited Create(AFileReader, AFileReaderClass, AFileWriterClass);
   FFileName   := AFilename;
   FCounter    := 0;
   FFileReader := AFileReader;
   FMutex      := CreateMutex(nil, False, '');
-  FEvents[0]  := CreateEvent(nil, False, False, '');
-  FEvents[1]  := FMutex;
   FQueue      := TQueue<string>.Create;
+  FMerges     := TList<ISortThread>.Create;
 end;
 
-destructor TMerge.Destroy;
+destructor TMergeManager.Destroy;
 begin
   inherited;
-  CloseHandle(FEvents[0]);
   CloseHandle(FMutex);
   FreeAndNil(FQueue);
+  FreeAndNil(FMerges);
 end;
 
-function TMerge.Add(const AFilename: string): Boolean;
+function TMergeManager.Add(const AFilename: string): Boolean;
 begin
   if WaitForSingleObject(FMutex, 1000) <> WAIT_OBJECT_0 then
     Exit(False);
   try
     FQueue.Enqueue(AFilename);
-    SetEvent(FEvents[0]);
     Result := True;
   finally
     ReleaseMutex(FMutex);
@@ -463,50 +397,66 @@ begin
 
 end;
 
-procedure TMerge.Start;
+procedure TMergeManager.Start;
 var
-  FileName: string;
+  FMerge: ISortThread;
+  S     : Integer;
 begin
   FThread := TThread.CreateAnonymousThread(
     procedure
     begin
       while not HasStopped do
-        case WaitForMultipleObjects(2, @FEvents, True, 1000) of
+        case WaitForSingleObject(FMutex, 1000) of
           WAIT_OBJECT_0:
             try
-              while FQueue.Count > 0 do
+              S := FQueue.Count;
+              if FQueue.Count >= 2 then
               begin
-                FileName := FQueue.Dequeue;
-                if FTempFileName = '' then
-                  FTempFileName := FileName
-                else
-                begin
-                  MergeFiles(FileName);
-                end;
-                Inc(FCounter);
+                FMerge := TMerge.Create(FFileName, FFileReader,
+                  [FQueue.Dequeue, FQueue.Dequeue], Self, FFileReaderClass, FFileWriterClass)
+                  as ISortThread;
+                FMerge.Start;
+                FMerges.Add(FMerge);
               end;
-              if FCounter = NUMBER_PROCESSOR then
-                Stop;
             finally
               ReleaseMutex(FMutex);
             end;
           WAIT_TIMEOUT:
             Continue;
-
         else
           Break;
         end;
-      if FTempFileName <> '' then
-      begin
-        RenameFile(FTempFileName, FFileName);
-        PostMessage(Application.MainFormHandle, WM_UPDATE_SORT_FINISHED, 0, 0);
-      end;
+      S := 10;
     end);
   FThread.FreeOnTerminate := False;
   FThread.Start;
 end;
 
-procedure TMerge.MergeFiles(const AFilename: string);
+{ TMerge }
+
+constructor TMerge.Create(const AFilename: string; const AFileReader: IFileReader;
+const AFileNames: array of string; const AMergeManager: TMergeManager;
+const AFileReaderClass, AFileWriterClass: TFileClass);
+begin
+  inherited Create(AFileReader, AFileReaderClass, AFileWriterClass);
+  FFileName      := AFilename;
+  FMergeManager  := AMergeManager;
+  FLeftFileName  := AFileNames[0];
+  FRightFileName := AFileNames[1];
+end;
+
+procedure TMerge.Start;
+begin
+  FThread := TThread.CreateAnonymousThread(
+    procedure
+    begin
+      MergeFiles;
+    end);
+  FThread.FreeOnTerminate := False;
+  FThread.Start;
+end;
+
+procedure TMerge.MergeFiles;
 
   procedure Merge(Left, Right: IFileReader; Writer: IFileWriter);
   var
@@ -515,7 +465,6 @@ procedure TMerge.MergeFiles(const AFilename: string);
   begin
     LIsReadingString := Left.ReadString(LStr);
     RIsReadingString := Right.ReadString(RStr);
-
 
     while LIsReadingString and RIsReadingString do
     begin
@@ -529,7 +478,6 @@ procedure TMerge.MergeFiles(const AFilename: string);
         Writer.WriteString(RStr);
         RIsReadingString := Right.ReadString(RStr);
       end;
-      SendMessage(Application.MainFormHandle, WM_UPDATE_MERGE_PROGRESS, Right.Position, Right.Size);
     end;
 
     while LIsReadingString do
@@ -542,41 +490,52 @@ procedure TMerge.MergeFiles(const AFilename: string);
     begin
       Writer.WriteString(RStr);
       RIsReadingString := Right.ReadString(RStr);
-      SendMessage(Application.MainFormHandle, WM_UPDATE_MERGE_PROGRESS, Right.Position, Right.Size);
     end;
-
-    SendMessage(Application.MainFormHandle, WM_UPDATE_MERGE_PROGRESS, 0, Right.Size);
-
   end;
 
 var
-  Left, Right: IFileReader;
-  Writer     : IFileWriter;
-  NewFileName: string;
+  Left, Right  : IFileReader;
+  Writer       : IFileWriter;
+  MergeFileName: string;
 begin
   Left := FFileReaderClass.Create as IFileReader;
-  Left.Open(FTempFileName);
+  Left.Open(FLeftFileName);
   try
     Right := FFileReaderClass.Create as IFileReader;
-    Right.Open(AFilename);
+    Right.Open(FRightFileName);
     try
-      NewFileName := TFileWriter.MakeRandomFileName;
-      Writer      := FFileWriterClass.Create as IFileWriter;
-      Writer.Open(NewFileName);
+      MergeFileName := TFileWriter.MakeRandomFileName;
+      Writer        := FFileWriterClass.Create as IFileWriter;
+      Writer.Open(MergeFileName);
       try
         Merge(Left, Right, Writer);
+        if Writer.Size = FFileReader.Size then
+        begin
+          // Закончить сортировку
+          Stop;
+          // Остановить таймер
+          PostMessage(Application.MainFormHandle, WM_SORT_HAS_FINISHED, 0, 0);
+        end
+        else
+          // Отправить файл для слияния
+          while not HasStopped do
+            if FMergeManager.Add(MergeFileName) then
+              Break;
       finally
         Writer.Close;
       end;
     finally
       Right.Close;
-//      DeleteFile(AFilename)
+      DeleteFile(FRightFileName)
     end;
   finally
     Left.Close;
-//    DeleteFile(FTempFileName);
-    FTempFileName := NewFileName;
+    DeleteFile(FLeftFileName);
   end;
+  if HasStopped then
+    // Переименовать файл
+    RenameFile(MergeFileName, FFileName);
+
 end;
 
 end.

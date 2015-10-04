@@ -70,14 +70,6 @@ object MainForm: TMainForm
     TabOrder = 2
     OnRightButtonClick = DscButtonedEditRightButtonClick
   end
-  object ProgressBar: TProgressBar
-    Left = 8
-    Top = 103
-    Width = 150
-    Height = 17
-    TabOrder = 3
-    StyleElements = [seFont, seClient]
-  end
   object StatusBar: TStatusBar
     Left = 0
     Top = 126
@@ -85,22 +77,17 @@ object MainForm: TMainForm
     Height = 19
     Panels = <
       item
-        Width = 250
+        Width = 350
       end
       item
         Width = 60
-      end
-      item
-        Style = psOwnerDraw
-        Width = 50
       end>
-    OnDrawPanel = StatusBarDrawPanel
   end
   object ImageList: TImageList
     Left = 328
     Top = 24
     Bitmap = {
-      494C010102000800640010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C0101020008006C0010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000001000000001002000000000000010
       00000000000000000000000000000000000000000000FAFAFA06BABABA6DB8B8
       B878B8B8B878B8B8B878B8B8B878B8B8B878B8B8B878B8B8B878DDDDDD2B0000
