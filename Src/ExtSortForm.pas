@@ -29,7 +29,8 @@ uses
   System.Generics.Defaults,
 
   ExtSortFile,
-  ExtSortThread;
+  ExtSortThread,
+  System.ImageList, ExtSortFactory;
 
 {$ENDREGION}
 
@@ -52,10 +53,9 @@ type
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure TimerTimer(Sender: TObject);
   private
-    FSortFactory : ISortFactory;
-    FSeriesPool  : TList<ISortThread>;
-    FMergeManager: IMergeManager;
-    FTime        : TTime;
+    FSeriesPool     : TList<ISort>;
+    FMergeController: IMergeController;
+    FTime           : TTime;
     procedure StartSort;
     procedure WmSortFinished(var Message: TMessage); message WM_SORT_HAS_FINISHED;
   public
@@ -75,6 +75,7 @@ uses SimpleLogger;
 
 type
   TStatusBarHelper = class Helper for TStatusBar
+  public
     procedure SetInfo(const AMsg: string);
     procedure ElapsedTime(const ATime: TTime);
   end;
@@ -129,11 +130,19 @@ begin
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
+var
+ SortFactory: ISortFactorySingleton;
 begin
   // Фабрика объектов сортировки: серии, слияние
-  FSortFactory := TSortFactory.Create(TFileReader, TFileWriter);
+  SortFactory                      := TSortFactorySingleton.GetInstance;
+  SortFactory.FileReaderClass      := TFileReader;
+  SortFactory.FileWriterClass      := TFileWriter;
+  SortFactory.SeriesCreatorClass   := TSeriesCreator;
+  SortFactory.MergerClass          := TMerger;
+  SortFactory.MergeControllerClass := TMergeController;
+
   // Пул потоков  создания серий
-  FSeriesPool := TList<ISortThread>.Create;
+  FSeriesPool := TList<ISort>.Create;
 end;
 
 procedure TMainForm.TimerTimer(Sender: TObject);
@@ -150,7 +159,7 @@ end;
 
 procedure TMainForm.StartSort;
 var
-  Series     : ISortThread;
+  Series     : ISort;
   TextFile   : IFileReader;
   FileSection: Int64;
   I          : Integer;
@@ -158,39 +167,37 @@ var
 begin
   FTime         := 0;
   Timer.Enabled := True;
-  TSortThread.Initialize;
-  FSortFactory.SrcFileName := SrcButtonedEdit.Text;
-  FSortFactory.DscFileName := DscButtonedEdit.Text;
+
+  TAbstractSort.Initialize;
+  TSortFactorySingleton.GetInstance.SrcFileName := SrcButtonedEdit.Text;
+  TSortFactorySingleton.GetInstance.DscFileName := DscButtonedEdit.Text;
 
   // Разделить файл на равные части
-  TextFile    := FSortFactory.Reader;
+  TextFile    := TSortFactorySingleton.GetInstance.GetReader(SrcButtonedEdit.Text);
   FileSection := TextFile.Size div NUMBER_PROCESSOR;
 
 {$IFDEF DEBUG}
   Log.LogStatus(Format('Сортируемый файл ''%s''', [SrcButtonedEdit.Text]), 'TMainForm.StartSort');
   Log.LogStatus(Format('Размер файла ''%d''', [TextFile.Size]), 'TMainForm.StartSort');
   Log.LogStatus(Format('Размер части файла ''%d''', [FileSection]), 'TMainForm.StartSort');
-  Log.LogStatus(Format('Количество частей файла ''%d''', [NUMBER_PROCESSOR]),
-    'TMainForm.StartSort');
+  Log.LogStatus(Format('Количество частей файла ''%d''', [NUMBER_PROCESSOR]), 'TMainForm.StartSort');
 {$ENDIF}
   // Интерфейс слияния
-  FMergeManager := FSortFactory.GetMergeManager;
-  FMergeManager.Start;
+  FMergeController := TSortFactorySingleton.GetInstance.GetMergerController;
+  FMergeController.Start;
 
   for I := 0 to NUMBER_PROCESSOR - 1 do
   begin
 
     // Разделить файл на равные части
-    TextFile := FSortFactory.Reader;
-    L        := I * FileSection;
-    H        := (I + 1) * FileSection;
-    TextFile.SetBoundaries(L, H);
+    L := I * FileSection;
+    H := (I + 1) * FileSection;
 
 {$IFDEF DEBUG}
     Log.LogStatus(Format('Диапазон %d части ''%d - %d''', [I, L, H]), 'TMainForm.StartSort');
 {$ENDIF}
     // Интерфейс серий
-    Series := FSortFactory.GetSeries(TextFile, FMergeManager);
+    Series := TSortFactorySingleton.GetInstance.GetSeriesCreator(FMergeController, [L, H]);
     Series.Start;
     // Добавить интерфейс серии в пул
     FSeriesPool.Add(Series);

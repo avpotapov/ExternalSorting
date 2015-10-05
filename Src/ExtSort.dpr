@@ -3,9 +3,10 @@ program ExtSort;
 uses
   Vcl.Forms,
   ExtSortForm in 'ExtSortForm.pas' {MainForm},
-  ExtSortThread in 'ExtSortThread.pas',
   SimpleLogger in 'SimpleLogger.pas',
-  ExtSortFile in 'ExtSortFile.pas';
+  ExtSortFile in 'ExtSortFile.pas',
+  ExtSortFactory in 'ExtSortFactory.pas',
+  ExtSortThread in 'ExtSortThread.pas';
 
 {$R *.res}
 
