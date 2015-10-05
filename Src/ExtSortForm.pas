@@ -1,7 +1,38 @@
 ﻿unit ExtSortForm;
 
 interface
-
+{$REGION 'Описание модуля'}
+ (*
+  *  Модуль формы сортировки
+  *
+  *  Основная процедура Sort
+  *  Вначале происходит инициализация процесса сортировки
+  *  Далее создается менеджер слияния.
+  *  Файл разбивается на части соответсвующие количеству процессоров
+  *  Каждая часть файла передается SeriesCreator, который также создается.
+  *  Для создания сложных объектов MergeController, SeriesCreator используются фабрики
+  *
+  *  Алгорит сортировки состоит из 2 фаз
+  *
+  *  - СОЗДАНИЕ СЕРИЙ
+  *  Запущенные SeriesCreator порционно считывают переданные им части файла в буфер обмена,
+  *  размер которого лимитирован.
+  *  Затем в буфере выполняется быстрая сортировка строк методом QuickSort. Учитывается длина
+  *  сортируемой строки.
+  *  В итоге образуется серия (отсортированный отрезок), который сохраняется в файл.
+  *  Имя файла помещается в потокобезопасную очередь MergeController.
+  *  Далее цикл повторяется, пока не будет обработан таким образом последний участок файла
+  *
+  *  - СЛИЯНИЕ
+  *  Как только в буфере MergeController появляются 2 и более отрезка, запускается создание
+  *  объекта слияния, которому передаются имена отрезков
+  *  Процесс повторяется пока очередь не опустеет
+  *  В объекте сляния происходит лияние двух файлов в один, используя функцию слияния.
+  *  Если размер файла соответствует размеру неотсортированного файла, то цель достигнута.
+  *  Сортировка прекращается.
+  *  В противном случае файл передается контроллеру слияния
+  *)
+{$ENDREGION}
 {$REGION 'uses'}
 
 uses
@@ -56,7 +87,8 @@ type
     FSeriesPool     : TList<ISort>;
     FMergeController: IMergeController;
     FTime           : TTime;
-    procedure StartSort;
+    // Основная процедура
+    procedure Sort;
     procedure WmSortFinished(var Message: TMessage); message WM_SORT_HAS_FINISHED;
   public
   end;
@@ -97,7 +129,7 @@ begin
   StatusBar.SetInfo('Сортировка ...');
   try
     // Запустить сортировку
-    StartSort;
+    Sort;
     SortButton.Enabled := False;
   except
     on E: Exception do
@@ -159,51 +191,48 @@ begin
   SortButton.Enabled := True;
 end;
 
-procedure TMainForm.StartSort;
+procedure TMainForm.Sort;
 var
   Series     : ISort;
-  TextFile   : IFileReader;
   FileSection: Int64;
   I          : Integer;
   L, H       : Int64;
 begin
+  // Инициализация сортировки (FStop = 0)
   FSeriesPool.Clear;
   FMergeController := nil;
   FTime         := 0;
   Timer.Enabled := True;
-
   TAbstractSort.Initialize;
+
+  // Имена файлов
   TSortFactorySingleton.GetInstance.SrcFileName := SrcButtonedEdit.Text;
   TSortFactorySingleton.GetInstance.DscFileName := DscButtonedEdit.Text;
 
-  // Разделить файл на равные части
-  TextFile    := TSortFactorySingleton.GetInstance.GetReader(SrcButtonedEdit.Text);
-  FileSection := TextFile.Size div NUMBER_PROCESSOR;
-
-{$IFDEF DEBUG}
-  Log.LogStatus(Format('Сортируемый файл ''%s''', [SrcButtonedEdit.Text]), 'TMainForm.StartSort');
-  Log.LogStatus(Format('Размер файла ''%d''', [TextFile.Size]), 'TMainForm.StartSort');
-  Log.LogStatus(Format('Размер части файла ''%d''', [FileSection]), 'TMainForm.StartSort');
-  Log.LogStatus(Format('Количество частей файла ''%d''', [NUMBER_PROCESSOR]), 'TMainForm.StartSort');
-{$ENDIF}
-  // Интерфейс слияния
+  // Контроллер слияния
   FMergeController := TSortFactorySingleton.GetInstance.GetMergerController;
   FMergeController.Start;
 
+  // Разбиваем файл на части. Количество частей соответствует количеству процессоров
+  FileSection := TSortFactorySingleton.GetInstance.GetReader(SrcButtonedEdit.Text).Size div NUMBER_PROCESSOR;
+{$IFDEF DEBUG}
+  Log.LogStatus(Format('Сортируемый файл ''%s''', [SrcButtonedEdit.Text]), 'TMainForm.StartSort');
+  Log.LogStatus(Format('Размер части файла ''%d''', [FileSection]), 'TMainForm.StartSort');
+  Log.LogStatus(Format('Количество частей файла ''%d''', [NUMBER_PROCESSOR]), 'TMainForm.StartSort');
+{$ENDIF}
+
   for I := 0 to NUMBER_PROCESSOR - 1 do
   begin
-
-    // Разделить файл на равные части
+    // Передаем последовательно каждую часть файла ...
     L := I * FileSection;
     H := (I + 1) * FileSection;
-
 {$IFDEF DEBUG}
-    Log.LogStatus(Format('Диапазон %d части ''%d - %d''', [I, L, H]), 'TMainForm.StartSort');
+    Log.LogStatus(Format('Границы %d части ''%d - %d''', [I, L, H]), 'TMainForm.StartSort');
 {$ENDIF}
-    // Интерфейс серий
+    // ... объектам, отвечающие за создание серий, и ...
     Series := TSortFactorySingleton.GetInstance.GetSeriesCreator(FMergeController, [L, H]);
     Series.Start;
-    // Добавить интерфейс серии в пул
+    // ... добавим в пул
     FSeriesPool.Add(Series);
   end;
 end;

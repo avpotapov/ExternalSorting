@@ -1,7 +1,11 @@
 ﻿unit ExtSortFactory;
 
 interface
-
+{$REGION 'Описание модуля'}
+ (*
+  *  Модуль фабрики объектов, участвующих в сортировке
+  *)
+{$ENDREGION}
 uses
   System.Classes,
   System.SysUtils,

@@ -1,6 +1,12 @@
 ﻿unit ExtSortFile;
 
 interface
+{$REGION 'Описание модуля'}
+ (*
+  *  Модуль доступа к файлам
+  *  Созданные объекты позволяют читать и записывать в файл
+  *)
+{$ENDREGION}
 
 uses
   System.Classes,
@@ -20,7 +26,9 @@ type
     procedure Close;
     procedure Open(const AFileName: string);
   end;
-
+  /// <summary>
+  ///   Файл для записи строки
+  /// </summary>
   IFileWriter = interface(IFile)
     ['{AD3FE232-AC43-4803-BB68-D15E7AF5468C}']
     procedure WriteString(AString: AnsiString);
@@ -29,8 +37,14 @@ type
 
   end;
 
+  /// <summary>
+  ///   Файл для чтения строки
+  /// </summary>
   IFileReader = interface(IFile)
     ['{C9DCE055-FF56-4BD0-941C-254C35A584ED}']
+    /// <summary>
+    ///   Определяет четкие границы между строками по приблизительным данным
+    /// </summary>
     procedure SetBoundaries(var AStart, AEnd: Int64);
     function ReadString(out AString: AnsiString): Boolean;
     function GetPosition: Int64;

@@ -1,7 +1,31 @@
 ﻿unit ExtSortThread;
 
 interface
-
+{$REGION 'Описание модуля'}
+ (*
+  *  Модуль объектов сортировки
+  *
+  *  Алгорит сортировки состоит из 2 фаз
+  *
+  *  - СОЗДАНИЕ СЕРИЙ
+  *  Запущенные SeriesCreator порционно считывают переданные им части файла в буфер обмена,
+  *  размер которого лимитирован.
+  *  Затем в буфере выполняется быстрая сортировка строк методом QuickSort. Учитывается длина
+  *  сортируемой строки.
+  *  В итоге образуется серия (отсортированный отрезок), который сохраняется в файл.
+  *  Имя файла помещается в потокобезопасную очередь MergeController.
+  *  Далее цикл повторяется, пока не будет обработан таким образом последний участок файла
+  *
+  *  - СЛИЯНИЕ
+  *  Как только в буфере MergeController появляются 2 и более отрезка, запускается создание
+  *  объекта слияния, которому передаются имена отрезков
+  *  Процесс повторяется пока очередь не опустеет
+  *  В объекте сляния происходит лияние двух файлов в один, используя функцию слияния.
+  *  Если размер файла соответствует размеру неотсортированного файла, то цель достигнута.
+  *  Сортировка прекращается.
+  *  В противном случае файл передается контроллеру слияния
+  *)
+{$ENDREGION}
 uses
   Winapi.Windows,
   Winapi.Messages,
@@ -31,29 +55,58 @@ type
     procedure Start;
     procedure Stop;
     procedure SetSrcFileReader(Value: IFileReader);
+    /// <summary>
+    ///   Сортируемый файл
+    /// </summary>
     property SrcFileReader: IFileReader write SetSrcFileReader;
   end;
 
+  /// <summary>
+  ///  Управляет процессом слияния файлов:
+  ///   накапливает имена файлов - отрезков в списке,
+  ///   запускает слияние двух файлов
+  /// </summary>
   IMergeController = interface(ISort)
     ['{B9235DAE-87E5-4F03-9D44-109B1C86C468}']
     function Add(const AFilename: string): Boolean;
     procedure SetMergerClass(const Value: TSortClass);
+    /// <summary>
+    ///   Класс объекта слияния
+    /// </summary>
     property MergerClass: TSortClass write SetMergerClass;
   end;
 
   IPhase = interface(ISort)
     ['{ED42A5DE-6DB1-419C-B1B7-6D318E5F66F0}']
     procedure SetMergeController(Value: IMergeController);
+    /// <summary>
+    ///   Контроллер слияния
+    /// </summary>
     property MergeController: IMergeController write SetMergeController;
   end;
 
+  /// <summary>
+  ///  Производит слияния файлов:
+  ///   если размер нового файла слияния меньше размера исходного файла,
+  ///   передает этот файл контроллеру слияния,
+  ///   в противном случае цель достугнута.
+  /// </summary>
   IMerger = interface(IPhase)
     ['{21D4607E-B847-4023-BB0C-BA8F050FD2CF}']
     procedure SetLeftFileName(const Value: string);
     procedure SetRightFileName(const Value: string);
     procedure SetDscFileName(const Value: string);
+    /// <summary>
+    ///   Первый файл слияния
+    /// </summary>
     property LeftFileName: string write SetLeftFileName;
+    /// <summary>
+    ///   Второй файл слияния
+    /// </summary>
     property RightFileName: string write SetRightFileName;
+    /// <summary>
+    ///   Имя отсортированного файла
+    /// </summary>
     property DscFileName: string write SetDscFileName;
   end;
 {$REGION 'TSort'}
@@ -93,7 +146,12 @@ type
   end;
 {$ENDREGION}
 {$REGION 'TSeries'}
-
+  /// <summary>
+  ///   Из считанных частей файла в буфер (размер буфера ограничен)
+  ///    создает отрезок,
+  ///    сохраняет его в файл,
+  ///    и передает контроллеру слияния
+  /// </summary>
   TSeriesCreator = class(TPhase, IPhase)
     FEof: Boolean;
     FStringList: TList<AnsiString>;
