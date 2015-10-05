@@ -13,6 +13,7 @@ const
   MAX_STRING_SIZE         = 500;
 
 type
+  TFileClass = class of TAbstractFile;
 
   IFile = interface
     ['{0B9B01C5-1680-4C25-93CA-C07715EF2186}']
@@ -39,16 +40,18 @@ type
     property Position: Int64 read GetPosition;
   end;
 
-  TFileClass = class of TTextFile;
+{$REGION 'TAbstractFile'}
 
-  TTextFile = class(TInterfacedObject, IFile)
+  TAbstractFile = class abstract(TInterfacedObject, IFile)
     procedure Open(const AFileName: string); virtual; abstract;
     procedure Close; virtual; abstract;
   public
     destructor Destroy; override;
   end;
+{$ENDREGION}
+{$REGION 'TFileReader'}
 
-  TFileReader = class(TTextFile, IFileReader)
+  TFileReader = class(TAbstractFile, IFileReader)
     FFileStream: TFileStream;
     FReader: TStreamReader;
     FCurrentPosition: Int64;
@@ -63,8 +66,10 @@ type
     function GetSize: Int64;
     function ReadString(out AString: AnsiString): Boolean;
   end;
+{$ENDREGION}
+{$REGION 'TFileWriter'}
 
-  TFileWriter = class(TTextFile, IFileWriter)
+  TFileWriter = class(TAbstractFile, IFileWriter)
     FWriter: TStreamWriter;
   public
     procedure Open(const AFileName: string); override;
@@ -73,18 +78,20 @@ type
     function GetSize: Int64;
     class function MakeRandomFileName: string;
   end;
+{$ENDREGION}
 
 implementation
 
-{ TTextFile }
+{$REGION 'TAbstractFile'}
 
-destructor TTextFile.Destroy;
+destructor TAbstractFile.Destroy;
 begin
   Close;
   inherited;
 end;
 
-{ TTextFile }
+{$ENDREGION}
+{$REGION 'TFileReader'}
 
 function TFileReader.GetPosition: Int64;
 begin
@@ -98,10 +105,10 @@ end;
 
 procedure TFileReader.Open(const AFileName: string);
 begin
-  FFileStream := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyNone);
-  FReader     := TStreamReader.Create(FFileStream, TEncoding.ANSI);
+  FFileStream      := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyNone);
+  FReader          := TStreamReader.Create(FFileStream, TEncoding.ANSI);
   FCurrentPosition := 0;
-  FEndPosition := FFileStream.Size;
+  FEndPosition     := FFileStream.Size;
 end;
 
 procedure TFileReader.Close;
@@ -158,7 +165,7 @@ begin
       Inc(I);
     end;
   finally
-    FreeAndNil(Buffer);
+    FreeAndnil(Buffer);
   end;
 end;
 
@@ -177,14 +184,15 @@ begin
   FFileStream.Position := FCurrentPosition;
 
   AStart := FCurrentPosition;
-  AEnd := FEndPosition;
+  AEnd   := FEndPosition;
 end;
 
-{ TFileWriter }
+{$ENDREGION}
+{$REGION 'TFileWriter'}
 
 procedure TFileWriter.Close;
 begin
-  FreeAndNil(FWriter);
+  FreeAndnil(FWriter);
 end;
 
 function TFileWriter.GetSize: Int64;
@@ -220,5 +228,7 @@ begin
   FWriter.Write(String(AString));
   FWriter.WriteLine;
 end;
+
+{$ENDREGION}
 
 end.

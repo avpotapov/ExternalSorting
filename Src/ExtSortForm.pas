@@ -98,6 +98,7 @@ begin
   try
     // Запустить сортировку
     StartSort;
+    SortButton.Enabled := False;
   except
     on E: Exception do
       StatusBar.SetInfo(Format('ОШИБКА: %s', [E.Message]));
@@ -155,6 +156,7 @@ procedure TMainForm.WmSortFinished(var Message: TMessage);
 begin
   StatusBar.SetInfo('Сортировка закончена');
   Timer.Enabled := False;
+  SortButton.Enabled := True;
 end;
 
 procedure TMainForm.StartSort;
@@ -165,6 +167,8 @@ var
   I          : Integer;
   L, H       : Int64;
 begin
+  FSeriesPool.Clear;
+  FMergeController := nil;
   FTime         := 0;
   Timer.Enabled := True;
 

@@ -6,10 +6,11 @@ uses
   System.Classes,
   System.SysUtils,
   ExtSortThread,
+
   ExtSortFile;
 
 type
-  EExtSortThread = class(Exception);
+  EExtSortFactory = class(Exception);
 
   ISortFactorySingleton = interface
     ['{D1D19AB8-2892-4F75-B7AA-2A90BA6D9C3D}']
@@ -39,18 +40,19 @@ type
     property MergeControllerClass: TSortClass write SetMergeControllerClass;
 
   end;
+{$REGION 'TSortFactorySingleton'}
 
   TSortFactorySingleton = class(TInterfacedObject, ISortFactorySingleton)
   strict private
   class var
     FInstance: ISortFactorySingleton;
 
-    FSrcFileName          : string;
-    FDscFileName          : string;
-    FFileReaderClass      : TFileClass;
-    FFileWriterClass      : TFileClass;
-    FSeriesCreatorClass   : TSortClass;
-    FMergerClass          : TSortClass;
+    FSrcFileName         : string;
+    FDscFileName         : string;
+    FFileReaderClass     : TFileClass;
+    FFileWriterClass     : TFileClass;
+    FSeriesCreatorClass  : TSortClass;
+    FMergerClass         : TSortClass;
     FMergeControllerClass: TSortClass;
 
     procedure SetSrcFileName(const Value: string);
@@ -84,7 +86,11 @@ type
 
   end;
 
+{$ENDREGION}
+
 implementation
+
+{$REGION 'TSortFactorySingleton'}
 
 constructor TSortFactorySingleton.Create;
 begin
@@ -114,23 +120,25 @@ end;
 
 function TSortFactorySingleton.GetMergerController: IMergeController;
 begin
-  Result := FMergeControllerClass.Create([FFileReaderClass, FFileWriterClass]) as IMergeController;
+  Result             := FMergeControllerClass.Create([FFileReaderClass, FFileWriterClass]) as IMergeController;
   Result.MergerClass := FMergerClass;
 end;
 
-function TSortFactorySingleton.GetMerger(AMergeController: IMergeController; const AFileNames: array of string): IMerger;
+function TSortFactorySingleton.GetMerger(AMergeController: IMergeController; const AFileNames: array of string)
+  : IMerger;
 begin
-  Result := FMergerClass.Create([FFileReaderClass, FFileWriterClass]) as IMerger;
-  Result.SrcFileReader := GetReader(FSrcFileName);
+  Result                 := FMergerClass.Create([FFileReaderClass, FFileWriterClass]) as IMerger;
+  Result.SrcFileReader   := GetReader(FSrcFileName);
   Result.MergeController := AMergeController;
-  Result.LeftFileName := AFileNames[0];
-  Result.RightFileName := AFileNames[1];
-  Result.DscFileName  := FDscFileName;
+  Result.LeftFileName    := AFileNames[0];
+  Result.RightFileName   := AFileNames[1];
+  Result.DscFileName     := FDscFileName;
 end;
 
-function TSortFactorySingleton.GetSeriesCreator(AMergeController: IMergeController; const ABoundaries: array of Int64): IPhase;
+function TSortFactorySingleton.GetSeriesCreator(AMergeController: IMergeController;
+  const ABoundaries: array of Int64): IPhase;
 var
-  L, H: Int64;
+  L, H  : Int64;
   Reader: IFileReader;
 begin
   Result := FSeriesCreatorClass.Create([FFileReaderClass, FFileWriterClass]) as IPhase;
@@ -148,7 +156,9 @@ end;
 procedure TSortFactorySingleton.SetDscFileName(const Value: string);
 begin
   if FDscFileName <> Value then
-    FDscFileName := Value;
+    if FileExists(Value) then
+      raise EExtSortFactory.CreateFmt('Файл ''%s'' уже существует ', [Value]);
+  FDscFileName := Value;
 end;
 
 procedure TSortFactorySingleton.SetFileReaderClass(const Value: TFileClass);
@@ -182,9 +192,28 @@ begin
 end;
 
 procedure TSortFactorySingleton.SetSrcFileName(const Value: string);
+const
+  L: Int64 = $40000;         // 100 Kb
+  H: Int64 = $1000000000000; // 10 Gb
+var
+  FFileStream: TFileStream;
 begin
   if FSrcFileName <> Value then
-    FSrcFileName := Value;
+    if not FileExists(Value) then
+      raise EExtSortFactory.CreateFmt('Файл ''%s'' не существует ', [Value]);
+  // Проверка размера файла
+  FFileStream := TFileStream.Create(Value, fmOpenRead);
+  try
+
+    if (FFileStream.Size < L) or (FFileStream.Size > H) then
+      raise EExtSortFactory.Create('Проверьте размер файла ''%s'' [100Kb - 10 Gb] ');
+  finally
+    FreeAndNil(FFileStream);
+  end;
+
+  FSrcFileName := Value;
 end;
+
+{$ENDREGION}
 
 end.

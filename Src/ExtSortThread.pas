@@ -130,6 +130,7 @@ type
     property MergerClass: TSortClass write SetMergerClass;
   end;
 {$ENDREGION}
+{$REGION 'TMerger'}
 
   TMerger = class(TPhase, IMerger)
     FLeftFileName, FRightFileName, FDscFileName: string;
@@ -143,6 +144,8 @@ type
     property RightFileName: string write SetRightFileName;
     property DscFileName: string write SetDscFileName;
   end;
+
+{$ENDREGION}
 
 implementation
 
