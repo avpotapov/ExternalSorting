@@ -2,8 +2,10 @@ program ExtSort;
 
 uses
   Vcl.Forms,
-  ExtSortForm in 'ExtSortForm.pas' {MainForm},
+{$IFDEF DEBUG}
   SimpleLogger in 'SimpleLogger.pas',
+{$ENDIF}
+  ExtSortForm in 'ExtSortForm.pas',
   ExtSortFile in 'ExtSortFile.pas',
   ExtSortFactory in 'ExtSortFactory.pas',
   ExtSortThread in 'ExtSortThread.pas';
