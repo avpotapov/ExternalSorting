@@ -1,6 +1,7 @@
 ﻿unit ExtSortThread;
 
 interface
+
 {$REGION 'Описание модуля'}
  (*
   *  Модуль объектов сортировки
@@ -20,12 +21,15 @@ interface
   *  Как только в буфере MergeController появляются 2 и более отрезка, запускается создание
   *  объекта слияния, которому передаются имена отрезков
   *  Процесс повторяется пока очередь не опустеет
-  *  В объекте сляния происходит лияние двух файлов в один, используя функцию слияния.
+  *  В объекте объединяются два файла в один, используя функцию слияния.
   *  Если размер файла соответствует размеру неотсортированного файла, то цель достигнута.
   *  Сортировка прекращается.
-  *  В противном случае файл передается контроллеру слияния
+  *  В противном случае файл передается контроллеру слияния.
+  *  Количество одновременно работающих потоков не превышает 4. За это отвечает семафор в
+  *  контроллере слияния
   *)
 {$ENDREGION}
+
 uses
   Winapi.Windows,
   Winapi.Messages,
@@ -56,22 +60,22 @@ type
     procedure Stop;
     procedure SetSrcFileReader(Value: IFileReader);
     /// <summary>
-    ///   Сортируемый файл
+    /// Сортируемый файл
     /// </summary>
     property SrcFileReader: IFileReader write SetSrcFileReader;
   end;
 
   /// <summary>
-  ///  Управляет процессом слияния файлов:
-  ///   накапливает имена файлов - отрезков в списке,
-  ///   запускает слияние двух файлов
+  /// Управляет процессом слияния файлов:
+  /// накапливает имена файлов - отрезков в списке,
+  /// запускает слияние двух файлов
   /// </summary>
   IMergeController = interface(ISort)
     ['{B9235DAE-87E5-4F03-9D44-109B1C86C468}']
     function Add(const AFilename: string): Boolean;
     procedure SetMergerClass(const Value: TSortClass);
     /// <summary>
-    ///   Класс объекта слияния
+    /// Класс объекта слияния
     /// </summary>
     property MergerClass: TSortClass write SetMergerClass;
   end;
@@ -80,16 +84,16 @@ type
     ['{ED42A5DE-6DB1-419C-B1B7-6D318E5F66F0}']
     procedure SetMergeController(Value: IMergeController);
     /// <summary>
-    ///   Контроллер слияния
+    /// Контроллер слияния
     /// </summary>
     property MergeController: IMergeController write SetMergeController;
   end;
 
   /// <summary>
-  ///  Производит слияния файлов:
-  ///   если размер нового файла слияния меньше размера исходного файла,
-  ///   передает этот файл контроллеру слияния,
-  ///   в противном случае цель достугнута.
+  /// Производит слияния файлов:
+  /// если размер нового файла слияния меньше размера исходного файла,
+  /// передает этот файл контроллеру слияния,
+  /// в противном случае цель достугнута.
   /// </summary>
   IMerger = interface(IPhase)
     ['{21D4607E-B847-4023-BB0C-BA8F050FD2CF}']
@@ -97,15 +101,15 @@ type
     procedure SetRightFileName(const Value: string);
     procedure SetDscFileName(const Value: string);
     /// <summary>
-    ///   Первый файл слияния
+    /// Первый файл слияния
     /// </summary>
     property LeftFileName: string write SetLeftFileName;
     /// <summary>
-    ///   Второй файл слияния
+    /// Второй файл слияния
     /// </summary>
     property RightFileName: string write SetRightFileName;
     /// <summary>
-    ///   Имя отсортированного файла
+    /// Имя отсортированного файла
     /// </summary>
     property DscFileName: string write SetDscFileName;
   end;
@@ -146,11 +150,12 @@ type
   end;
 {$ENDREGION}
 {$REGION 'TSeries'}
+
   /// <summary>
-  ///   Из считанных частей файла в буфер (размер буфера ограничен)
-  ///    создает отрезок,
-  ///    сохраняет его в файл,
-  ///    и передает контроллеру слияния
+  /// Из считанных частей файла в буфер (размер буфера ограничен)
+  /// создает отрезок,
+  /// сохраняет его в файл,
+  /// и передает контроллеру слияния
   /// </summary>
   TSeriesCreator = class(TPhase, IPhase)
     FEof: Boolean;
@@ -178,11 +183,15 @@ type
     FMerges: TList<ISort>;
     FQueue: TQueue<string>;
     FMutex: THandle;
+    FSemaphore: THandle;
+    // FMutex + FSemaphore
+    FWaitHandles: array [0 .. 1] of THandle;
     procedure SetMergerClass(const Value: TSortClass);
   public
     constructor Create(const AFileClass: array of TFileClass); override;
     destructor Destroy; override;
   public
+    procedure HasDone;
     procedure Start; override;
     function Add(const AFilename: string): Boolean;
     property MergerClass: TSortClass write SetMergerClass;
@@ -349,12 +358,16 @@ begin
     begin
       while not HasStopped do
       begin
-        PopulateStringList;
-        SortStringList;
-        SaveStringList;
-        ClearStringList;
-        if FEof then
-          Break;
+        try
+          PopulateStringList;
+          SortStringList;
+          SaveStringList;
+          ClearStringList;
+          if FEof then
+            Break;
+        finally
+          FMergeController.HasDone;
+        end;
       end;
     end);
   FThread.FreeOnTerminate := False;
@@ -367,18 +380,29 @@ end;
 constructor TMergeController.Create(const AFileClass: array of TFileClass);
 begin
   inherited Create(AFileClass);
-  FCounter := 0;
-  FMutex   := CreateMutex(nil, False, '');
-  FQueue   := TQueue<string>.Create;
-  FMerges  := TList<ISort>.Create;
+  FCounter        := 0;
+  FMutex          := CreateMutex(nil, False, '');
+  FSemaphore      := CreateSemaphore(nil, 0, NUMBER_PROCESSOR, '');
+  FWaitHandles[0] := FMutex;
+  FWaitHandles[1] := FSemaphore;
+  FQueue          := TQueue<string>.Create;
+  FMerges         := TList<ISort>.Create;
 end;
 
 destructor TMergeController.Destroy;
 begin
   inherited;
   CloseHandle(FMutex);
+  CloseHandle(FSemaphore);
   FreeAndNil(FQueue);
   FreeAndNil(FMerges);
+end;
+
+procedure TMergeController.HasDone;
+var
+  PrevCount: LongInt;
+begin
+  ReleaseSemaphore(FSemaphore, 1, @PrevCount);
 end;
 
 procedure TMergeController.SetMergerClass(const Value: TSortClass);
@@ -406,7 +430,7 @@ begin
     procedure
     begin
       while not HasStopped do
-        case WaitForSingleObject(FMutex, 1000) of
+        case WaitForMultipleObjects(2, @FWaitHandles, True, 1000) of
           WAIT_OBJECT_0:
             try
               if FQueue.Count >= 2 then
@@ -451,7 +475,11 @@ begin
   FThread := TThread.CreateAnonymousThread(
     procedure
     begin
-      MergeFiles;
+      try
+        MergeFiles;
+      finally
+        FMergeController.HasDone;
+      end;
     end);
   FThread.FreeOnTerminate := False;
   FThread.Start;
