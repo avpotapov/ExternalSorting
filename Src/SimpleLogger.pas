@@ -1,7 +1,9 @@
 ﻿unit SimpleLogger;
 
 interface
+
 uses
+  Winapi.Windows,
   System.Classes,
   System.SysUtils;
 
@@ -12,19 +14,31 @@ type
     FApplicationName: string;
     FApplicationPath: string;
   public
-    constructor Create;
+    constructor Create; overload;
+    constructor Create(const AFileName: string); overload;
     destructor Destroy; override;
     function GetApplicationName: string;
     function GetApplicationPath: string;
-    procedure LogError(ErrorMessage: string; Location: string);
-    procedure LogWarning(WarningMessage: string; Location: string);
-    procedure LogStatus(StatusMessage: string; Location: string);
+    procedure LogError(ErrorMessage: string; Location: string); virtual;
+    procedure LogWarning(WarningMessage: string; Location: string); virtual;
+    procedure LogStatus(StatusMessage: string; Location: string); virtual;
     property ApplicationName: string read GetApplicationName;
     property ApplicationPath: string read GetApplicationPath;
   end;
 
+  TThreadSafeLogger = class(TSimpleLogger)
+  private
+    FCs: TRtlCriticalSection;
+  public
+    constructor Create(const AFileName: string); reintroduce;
+    destructor Destroy; override;
+    procedure LogError(ErrorMessage: string; Location: string); override;
+    procedure LogWarning(WarningMessage: string; Location: string); override;
+    procedure LogStatus(StatusMessage: string; Location: string); override;
+  end;
+
 var
-  Log: TSimpleLogger;
+  Logger: TSimpleLogger;
 
 implementation
 
@@ -34,8 +48,23 @@ var
   FileName: string;
 begin
   FApplicationName := ExtractFileName(ParamStr(0));
-  FApplicationPath := ExtractFilePath(ParamStr(0));
-  FileName         := FApplicationPath + ChangeFileExt(FApplicationName, '.log');
+  FApplicationPath := ExtractFilePath(ParamStr(0)) + 'Logs\';
+  if not DirectoryExists(FApplicationPath) then
+    CreateDir(FApplicationPath);
+  FileName := FApplicationPath + ChangeFileExt(FApplicationName, '.log');
+  AssignFile(FFileHandle, FileName);
+  ReWrite(FFileHandle);
+end;
+
+constructor TSimpleLogger.Create(const AFileName: string);
+var
+  FileName: string;
+begin
+  FApplicationName := ExtractFileName(ParamStr(0));
+  FApplicationPath := ExtractFilePath(ParamStr(0)) + 'Logs\';
+  if not DirectoryExists(FApplicationPath) then
+    CreateDir(FApplicationPath);
+  FileName := FApplicationPath + ChangeFileExt(AFileName, '.log');
   AssignFile(FFileHandle, FileName);
   ReWrite(FFileHandle);
 end;
@@ -60,7 +89,7 @@ procedure TSimpleLogger.LogError(ErrorMessage, Location: string);
 var
   S: string;
 begin
-  S := '!!! ERROR !!! : ' + TimeToStr(Time) + ' MSG : ' + ErrorMessage + ' IN : ' + Location + #13#10;
+  S := '!!! ERROR: ' + #9 + FormatDateTime('hh:nn:ss:zzz', Time) + #9 + ' MSG : ' + ErrorMessage + ' IN : ' + Location + #13#10;
   WriteLn(FFileHandle, S);
   Flush(FFileHandle);
 end;
@@ -69,7 +98,7 @@ procedure TSimpleLogger.LogStatus(StatusMessage, Location: string);
 var
   S: string;
 begin
-  S := 'STATUS INFO :  ' + TimeToStr(Time) + ' MSG : ' + StatusMessage + ' IN : ' + Location + #13#10;
+  S := '    STATUS: ' + #9 + FormatDateTime('hh:nn:ss:zzz', Time) + #9 + ' MSG : ' + StatusMessage + ' IN : ' + Location + #13#10;
   WriteLn(FFileHandle, S);
   Flush(FFileHandle);
 end;
@@ -78,23 +107,69 @@ procedure TSimpleLogger.LogWarning(WarningMessage, Location: string);
 var
   S: string;
 begin
-  S := '--- WARNING --- :  ' + TimeToStr(Time) + ' MSG : ' + WarningMessage + ' IN : ' + Location + #13#10;
+  S := '--- WARNING: ' + #9 + FormatDateTime('hh:nn:ss:zzz', Time) + #9 + ' MSG : ' + WarningMessage + ' IN : ' + Location + #13#10;
   WriteLn(FFileHandle, S);
   Flush(FFileHandle);
+end;
+
+{ TThreadSafeLogger }
+
+constructor TThreadSafeLogger.Create(const AFileName: string);
+begin
+  inherited Create(AFileName);
+  InitializeCriticalSection(FCs);
+end;
+
+destructor TThreadSafeLogger.Destroy;
+begin
+  DeleteCriticalSection(FCs);
+  inherited;
+end;
+
+procedure TThreadSafeLogger.LogError(ErrorMessage, Location: string);
+begin
+  EnterCriticalSection(FCs);
+  try
+    inherited LogError(ErrorMessage, Location);
+  finally
+    LeaveCriticalSection(FCs);
+  end;
+end;
+
+procedure TThreadSafeLogger.LogStatus(StatusMessage, Location: string);
+begin
+  EnterCriticalSection(FCs);
+  try
+    inherited LogStatus(StatusMessage, Location);
+  finally
+    LeaveCriticalSection(FCs);
+  end;
+
+end;
+
+procedure TThreadSafeLogger.LogWarning(WarningMessage, Location: string);
+begin
+  EnterCriticalSection(FCs);
+  try
+    inherited LogWarning(WarningMessage, Location);
+  finally
+    LeaveCriticalSection(FCs);
+  end;
+
 end;
 
 initialization
 
 begin
-  Log := TSimpleLogger.Create;
-  Log.LogStatus('Starting Application', 'Initialization');
+  Logger := TSimpleLogger.Create;
+  Logger.LogStatus('Starting Application', 'Initialization');
 end;
 
 finalization
 
 begin
-  Log.LogStatus('Terminating Application', 'Finalization');
-  FreeAndNil(Log);
+  Logger.LogStatus('Terminating Application', 'Finalization');
+  FreeAndNil(Logger);
 end;
 
 end.
